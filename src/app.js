@@ -1,6 +1,6 @@
 import express from "express";
 import cors from "cors";
-import { MongoClient, MongoClient } from "mongodb";
+import { MongoClient } from "mongodb";
 import dotenv from "dotenv";
 import dayjs from "dayjs";
 import Joi from "joi";
@@ -20,19 +20,38 @@ try {
 const db = mongoClient.db();
 
 app.post("/participants", async (req, res) => {
-  const participant = req.body;
-  const { name } = req.body;
+  const collection = req.body;
 
-  const newParticipants = { name, lastStatus: Date.now() };
+  const participantSchema = Joi.object({
+    name: Joi.string().required().min(1)
+  });
+
+  const validation = participantSchema.validate(collection);
+
+  if (validation.error) {
+    const errors = validation.error.details.map((details) => details.message);
+    return res.status(422).send(errors);
+  }
+
+  const newParticipants = { name: collection.name, lastStatus: Date.now() };
+
+  const message = {
+    from: req.body.name,
+    to: "Todos",
+    text: "entra na sala...",
+    type: "status",
+    time: dayjs().format().substring(11, 19),
+  };
 
   try {
     const nameParticipant = await db
       .collection("participants")
-      .findOne({ name: name });
-    if (nameParticipant) return res.status(409).send("esse nome já existe!");
+      .findOne({ name: collection.name });
+    if (nameParticipant) return res.status(409).send("Esse nome já existe!");
 
     await db.collection("participants").insertOne(newParticipants);
-    res.status(201).send("tudo ok");
+    await db.collection("messages").insertOne(message);
+    res.status(201).send("Sucesso");
   } catch (err) {
     res.status(500).send(err.message);
   }
