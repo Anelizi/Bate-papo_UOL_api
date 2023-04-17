@@ -23,7 +23,7 @@ app.post("/participants", async (req, res) => {
   const collection = req.body;
 
   const participantSchema = Joi.object({
-    name: Joi.string().required().min(1)
+    name: Joi.string().required().min(1),
   });
 
   const validation = participantSchema.validate(collection);
@@ -40,7 +40,7 @@ app.post("/participants", async (req, res) => {
     to: "Todos",
     text: "entra na sala...",
     type: "status",
-    time: dayjs().format().substring(11, 19),
+    time: dayjs().format("HH:mm:ss"),
   };
 
   try {
@@ -58,16 +58,56 @@ app.post("/participants", async (req, res) => {
 });
 
 app.get("/participants", async (req, res) => {
-
-  try{
-    const participant = await db.collection('participants').find().toArray()
+  try {
+    const participant = await db.collection("participants").find().toArray();
     res.send(participant);
-  } catch (err){
+  } catch (err) {
     console.error(err);
-    res.status(500).send('ocorreu um problema durante a execução');
+    res.status(500).send("ocorreu um problema durante a execução");
+  }
+});
+
+app.post("/messages", async (req, res) => {
+  const { to, text, type } = req.body;
+  const user = req.headers;
+
+  console.log(req.headers.user);
+  console.log(req.body)
+
+  const messagesSchema = Joi.object({
+    to: Joi.string().required(),
+    text: Joi.string().required(),
+    type: Joi.string().valid('message', 'private_message').required(),
+  });
+
+  const validation = messagesSchema.validate(
+    req.body,
+    { abortEarly: false }
+  );
+
+  if (validation.error) {
+    const errors = validation.error.details.map((detail) => detail.message);
+    return res.status(422).send(errors);
   }
 
-})
+  const participant = await db.collection("participants").findOne({ name: user });
+  if (!participant) return res.status(422).send("participante não existente");
+
+  const message = {
+    from: user,
+    to,
+    text,
+    type,
+    time: dayjs().format("HH:mm:ss"),
+  };
+
+  try {
+    await db.collection("messages").insertOne(message);
+    res.status(201).send("Sucesso");
+  } catch (err) {
+    res.status(500).send(err.message);
+  }
+});    
 
 const PORT = 5000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
