@@ -69,7 +69,7 @@ app.get("/participants", async (req, res) => {
 
 app.post("/messages", async (req, res) => {
   const { to, text, type } = req.body;
-  const user = req.headers;
+  const user = req.headers.user;
 
   console.log(req.headers.user);
   console.log(req.body)
@@ -91,13 +91,13 @@ app.post("/messages", async (req, res) => {
   }
 
   const participant = await db.collection("participants").findOne({ name: user });
-  if (!participant) return res.status(422).send("participante não existente");
+  if (participant === 0) return res.status(422).send("participante não existente");
 
   const message = {
-    from: user,
     to,
     text,
     type,
+    from: user,
     time: dayjs().format("HH:mm:ss"),
   };
 
