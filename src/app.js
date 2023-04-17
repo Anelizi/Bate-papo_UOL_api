@@ -71,18 +71,13 @@ app.post("/messages", async (req, res) => {
   const { to, text, type } = req.body;
   const { user } = req.headers;
 
-  console.log(user);
-
   const messagesSchema = Joi.object({
     to: Joi.string().required(),
     text: Joi.string().required(),
     type: Joi.string().valid("message", "private_message").required(),
   });
 
-  const validation = messagesSchema.validate(
-    { to, text, type },
-    { abortEarly: false }
-  );
+  const validation = messagesSchema.validate(req.body, { abortEarly: false });
 
   const message = {
     to,
@@ -101,7 +96,7 @@ app.post("/messages", async (req, res) => {
     .collection("participants")
     .findOne({ name: user });
 
-  if (participant === 0) {
+  if (!participant) {
     return res.status(422).send("participante não existente");
   }
 
@@ -165,19 +160,21 @@ setInterval(async () => {
     const participant = await db
       .collection("participants")
       .find({ lastStatus: { $lt: Date.now() - 10000 } })
-      .toArray();
-
-    if (participant.length !== 0) {
-      participant.forEach(async (p) => {
-        await db.collection("messages").insertOne({
-          from: p.name,
-          to: "Todos",
-          text: "sai da sala...",
-          time: dayjs().format("HH:mm:ss"),
+      .toArray()
+      .then((res) => {
+        res.forEach(async (participant) => {
+          await db.collection("messages").insertOne({
+            from: participant.name,
+            to: "Todos",
+            text: "sai da sala...",
+            type: "status",
+            time: dayjs().format("HH:mm:ss"),
+          });
+          db.collection("participants").deleteOne({
+            name: participant.name,
+          });
         });
-        db.collection("participants").deleteOne({ name: p.name });
       });
-    }
   } catch (error) {
     res.status(500).send("Erro");
   }
