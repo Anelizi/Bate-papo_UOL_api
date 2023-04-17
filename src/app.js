@@ -131,9 +131,7 @@ app.get("/messages", async (req, res) => {
     if (query.limit) {
       const limit = parseFloat(query.limit);
       if (isNaN(limit) || limit < 1)
-        return res
-          .status(422)
-          .send(messageFilter.reverse().splice(0, query.limit));
+        return res.status(422).send(messageFilter.reverse().splice(0, limit));
     }
     res.status(200).send(messageFilter).reverse();
   } catch (err) {
@@ -162,9 +160,28 @@ app.post("/status", async (req, res) => {
   }
 });
 
-const removal = async() => {
+setInterval(async () => {
+  try {
+    const participant = await db
+      .collection("participants")
+      .find({ lastStatus: { $lt: Date.now() - 10000 } })
+      .toArray();
 
-}
+    if (participant.length !== 0) {
+      participant.forEach(async (p) => {
+        await db.collection("messages").insertOne({
+          from: p.name,
+          to: "Todos",
+          text: "sai da sala...",
+          time: dayjs().format("HH:mm:ss"),
+        });
+        db.collection("participants").deleteOne({ name: p.name });
+      });
+    }
+  } catch (error) {
+    res.status(500).send("Erro");
+  }
+}, 15000);
 
 const PORT = 5000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
