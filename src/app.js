@@ -141,5 +141,30 @@ app.get("/messages", async (req, res) => {
   }
 });
 
+app.post("/status", async (req, res) => {
+  const { user } = req.headers;
+
+  try {
+    const participant = await db
+      .collection("participants")
+      .findOne({ name: user });
+
+    if (participant) {
+      await db
+        .collection("participants")
+        .updateOne({ name: user }, { $set: { lastStatus: Date.now() } });
+      return res.status(200).send("Sucesso");
+    } else {
+      res.status(404).send("participante não conste na lista de participantes");
+    }
+  } catch (error) {
+    res.status(500).send("Erro ao buscar mensagens.");
+  }
+});
+
+const removal = async() => {
+
+}
+
 const PORT = 5000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
