@@ -69,29 +69,20 @@ app.get("/participants", async (req, res) => {
 
 app.post("/messages", async (req, res) => {
   const { to, text, type } = req.body;
-  const user = req.headers.user;
+  const { user } = req.headers;
 
-  console.log(req.headers.user);
-  console.log(req.body)
+  console.log(user);
 
   const messagesSchema = Joi.object({
     to: Joi.string().required(),
     text: Joi.string().required(),
-    type: Joi.string().valid('message', 'private_message').required(),
+    type: Joi.string().valid("message", "private_message").required(),
   });
 
   const validation = messagesSchema.validate(
-    req.body,
+    { to, text, type },
     { abortEarly: false }
   );
-
-  if (validation.error) {
-    const errors = validation.error.details.map((detail) => detail.message);
-    return res.status(422).send(errors);
-  }
-
-  const participant = await db.collection("participants").findOne({ name: user });
-  if (participant === 0) return res.status(422).send("participante não existente");
 
   const message = {
     to,
@@ -101,13 +92,54 @@ app.post("/messages", async (req, res) => {
     time: dayjs().format("HH:mm:ss"),
   };
 
+  if (validation.error) {
+    const errors = validation.error.details.map((detail) => detail.message);
+    return res.status(422).send(errors);
+  }
+
+  const participant = await db
+    .collection("participants")
+    .findOne({ name: user });
+
+  if (participant === 0) {
+    return res.status(422).send("participante não existente");
+  }
+
   try {
     await db.collection("messages").insertOne(message);
     res.status(201).send("Sucesso");
   } catch (err) {
     res.status(500).send(err.message);
   }
-});    
+});
+
+app.get("/messages", async (req, res) => {
+  const { user } = req.headers;
+  const { query } = req;
+
+  const message = await db.collection("messages").find().toArray();
+
+  let messageFilter = message.filter(
+    (m) =>
+      m.to === user ||
+      m.type === "message" ||
+      m.from === user ||
+      m.type == "status"
+  );
+
+  try {
+    if (query.limit) {
+      const limit = parseFloat(query.limit);
+      if (isNaN(limit) || limit < 1)
+        return res
+          .status(422)
+          .send(messageFilter.reverse().splice(0, query.limit));
+    }
+    res.status(200).send(messageFilter).reverse();
+  } catch (err) {
+    res.status(500).send("Erro ao buscar mensagens.");
+  }
+});
 
 const PORT = 5000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
