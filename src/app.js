@@ -20,20 +20,20 @@ try {
 const db = mongoClient.db();
 
 app.post("/participants", async (req, res) => {
-  const collection = req.body;
+  const user = req.body;
 
   const participantSchema = Joi.object({
     name: Joi.string().required().min(1),
   });
 
-  const validation = participantSchema.validate(collection);
+  const validation = participantSchema.validate(user);
 
   if (validation.error) {
     const errors = validation.error.details.map((details) => details.message);
     return res.status(422).send(errors);
   }
 
-  const newParticipants = { name: collection.name, lastStatus: Date.now() };
+  const newParticipants = { name: user.name, lastStatus: Date.now() };
 
   const message = {
     from: req.body.name,
@@ -46,7 +46,7 @@ app.post("/participants", async (req, res) => {
   try {
     const nameParticipant = await db
       .collection("participants")
-      .findOne({ name: collection.name });
+      .findOne({ name: user.name });
     if (nameParticipant) return res.status(409).send("Esse nome já existe!");
 
     await db.collection("participants").insertOne(newParticipants);
@@ -63,7 +63,7 @@ app.get("/participants", async (req, res) => {
     res.send(participant);
   } catch (err) {
     console.error(err);
-    res.status(500).send("ocorreu um problema durante a execução");
+    res.status(500).send(err.message);
   }
 });
 
@@ -97,7 +97,7 @@ app.post("/messages", async (req, res) => {
     .findOne({ name: user });
 
   if (!participant) {
-    return res.status(422).send("participante não existente");
+    return res.status(422).send("Participante não existente");
   }
 
   try {
@@ -124,13 +124,13 @@ app.get("/messages", async (req, res) => {
 
   try {
     if (query.limit) {
-      const limit = parseFloat(query.limit);
+      const limit = Number(query.limit);
       if (isNaN(limit) || limit < 1)
         return res.status(422).send(messageFilter.reverse().splice(0, limit));
     }
     res.status(200).send(messageFilter).reverse();
   } catch (err) {
-    res.status(500).send("Erro ao buscar mensagens.");
+    res.status(500).send(err.message);
   }
 });
 
@@ -148,35 +148,35 @@ app.post("/status", async (req, res) => {
         .updateOne({ name: user }, { $set: { lastStatus: Date.now() } });
       return res.status(200).send("Sucesso");
     } else {
-      res.status(404).send("participante não conste na lista de participantes");
+      res.status(404).send("Participante não consta na lista de participantes");
     }
-  } catch (error) {
-    res.status(500).send("Erro ao buscar mensagens.");
+  } catch (err) {
+    res.status(500).send(err.message);
   }
 });
 
 setInterval(async () => {
   try {
-    const participant = await db
+       await db
       .collection("participants")
       .find({ lastStatus: { $lt: Date.now() - 10000 } })
       .toArray()
       .then((res) => {
-        res.forEach(async (participant) => {
+        res.forEach(async (p) => {
           await db.collection("messages").insertOne({
-            from: participant.name,
+            from: p.name,
             to: "Todos",
             text: "sai da sala...",
             type: "status",
             time: dayjs().format("HH:mm:ss"),
           });
           db.collection("participants").deleteOne({
-            name: participant.name,
+            name: p.name,
           });
         });
       });
-  } catch (error) {
-    res.status(500).send("Erro");
+  } catch (err) {
+    res.status(500).send(err.message);
   }
 }, 15000);
 
